@@ -1,0 +1,194 @@
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiki Gacha Collector</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #4caf50; }
+        .controls { margin-bottom: 20px; }
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        button:hover { background-color: #45a049; }
+        .card-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            min-height: 250px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .card {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            border: 4px solid #d4af37;
+            border-radius: 10px;
+            width: 180px;
+            padding: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            text-align: center;
+        }
+        .card.Rare { border-color: #d4af37; background: linear-gradient(135deg, #d4af37, #aa7c11); color: #000; }
+        .card.Epic { border-color: #9b59b6; background: linear-gradient(135deg, #8e44ad, #9b59b6); }
+        .card.Common { border-color: #bdc3c7; background: linear-gradient(135deg, #7f8c8d, #95a5a6); }
+        .card-title { font-weight: bold; font-size: 14px; margin-bottom: 10px; height: 40px; overflow: hidden; }
+        .stats { font-size: 12px; background: rgba(0,0,0,0.4); padding: 5px; border-radius: 3px; }
+        .card.Rare .stats { background: rgba(255,255,255,0.4); }
+        .collection {
+            width: 100%;
+            max-width: 800px;
+            border-top: 1px solid #444;
+            padding-top: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .thumb-card {
+            background: #2a2a2a;
+            border: 2px solid #555;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: center;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Wiki Gacha Collector</h1>
+    
+    <div class="controls">
+        <button id="pull-btn">Pull 1 Card</button>
+    </div>
+
+    <div class="card-container" id="display-container">
+        <!-- New cards show up here -->
+    </div>
+
+    <div class="collection">
+        <h2>Your Album (<span id="count">0</span> cards)</h2>
+        <div class="grid" id="collection-grid">
+            <!-- Saved cards display here -->
+        </div>
+    </div>
+
+    <script>
+        // Use localStorage to create a persistent save state
+        let collection = JSON.parse(localStorage.getItem('wiki_gacha_inventory')) || [];
+
+        const pullBtn = document.getElementById('pull-btn');
+        const displayContainer = document.getElementById('display-container');
+        const collectionGrid = document.getElementById('collection-grid');
+        const countSpan = document.getElementById('count');
+
+        // Update display on load
+        updateUI();
+
+        pullBtn.addEventListener('click', async () => {
+            pullBtn.disabled = true;
+            pullBtn.innerText = "Opening...";
+            displayContainer.innerHTML = "";
+
+            try {
+                // Step 1: Hit the Live MediaWiki API for a random Main Namespace article
+                const url = "https://wikipedia.org*";
+                const response = await fetch(url);
+                const data = await response.json();
+                const article = data.query.random[0];
+
+                // Step 2: Query metadata for that specific page ID to generate gameplay stats
+                const infoUrl = `https://wikipedia.org{article.id}&prop=info&format=json&origin=*`;
+                const infoResponse = await fetch(infoUrl);
+                const infoData = await infoResponse.json();
+                const pageInfo = infoData.query.pages[article.id];
+
+                // Step 3: Map API attributes to Card stats dynamically
+                const length = pageInfo.length || 500;
+                
+                // Algorithmic attributes
+                const def = Math.min(9999, Math.max(100, Math.floor(length / 5)));
+                const atk = Math.floor(Math.random() * 8000) + 1000; // Simulated view metrics
+                
+                let rarity = "Common";
+                if (length > 25000) rarity = "Rare";
+                else if (length > 10000) rarity = "Epic";
+
+                const newCard = {
+                    id: article.id,
+                    title: article.title,
+                    atk: atk,
+                    def: def,
+                    rarity: rarity
+                };
+
+                // Step 4: Save progress to LocalStorage array
+                if (!collection.some(card => card.id === newCard.id)) {
+                    collection.push(newCard);
+                    localStorage.setItem('wiki_gacha_inventory', JSON.stringify(collection));
+                }
+
+                // Step 5: Render card output on screen
+                renderNewCard(newCard);
+                updateUI();
+
+            } catch (error) {
+                console.error("API Fetch Error:", error);
+                alert("Failed to reach Wikipedia. Try again!");
+            } finally {
+                pullBtn.disabled = false;
+                pullBtn.innerText = "Pull 1 Card";
+            }
+        });
+
+        function renderNewCard(card) {
+            displayContainer.innerHTML = `
+                <div class="card ${card.rarity}">
+                    <div class="card-title">${card.title}</div>
+                    <div><strong>${card.rarity}</strong></div>
+                    <div class="stats">
+                        <div>ATK: ${card.atk}</div>
+                        <div>DEF: ${card.def}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateUI() {
+            countSpan.innerText = collection.length;
+            collectionGrid.innerHTML = collection.map(card => `
+                <div class="thumb-card" style="border-color: ${card.rarity === 'Rare' ? '#d4af37' : card.rarity === 'Epic' ? '#9b59b6' : '#555'}">
+                    <strong>${card.title}</strong><br>
+                    <span style="font-size:10px; color:#aaa;">A: ${card.atk} | D: ${card.def}</span>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
